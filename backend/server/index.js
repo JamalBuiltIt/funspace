@@ -12,7 +12,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // allow frontend
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
@@ -31,7 +31,23 @@ io.on("connection", (socket) => {
 
   socket.on("send_message", (msg) => {
     if (!msg || !msg.user || !msg.text) return;
+    msg.timestamp = new Date().toISOString(); // Add timestamp
     io.emit("receive_message", msg);
+  });
+
+  // Handle typing indicator
+  socket.on("typing", () => {
+    const username = users[socket.id];
+    if (username) {
+      socket.broadcast.emit("user_typing", username);
+    }
+  });
+
+  socket.on("stop_typing", () => {
+    const username = users[socket.id];
+    if (username) {
+      socket.broadcast.emit("user_stopped_typing", username);
+    }
   });
 
   socket.on("disconnect", () => {
