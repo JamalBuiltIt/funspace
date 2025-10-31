@@ -1,123 +1,79 @@
-// src/pages/Chat.jsx
-import React, { useEffect, useState, useRef } from "react";
-import OnlineUsers from "../components/OnlineUsers";
-import socket from "../socket";
+import React, { useEffect, useRef, useState } from "react";
+import { socket } from "../api/socket";
+import ChatWindow from "../components/ChatWindow";
 
-function Chat({ user }) {
-  const [messages, setMessages] = useState([]);
-  const [messageInput, setMessageInput] = useState("");
-  const [typingUsers, setTypingUsers] = useState([]);
-  const typingTimeout = useRef(null);
+export default function Chat({ currentUser }) {
+  const [joined, setJoined] = useState(false);
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
 
-  // Join chat
   useEffect(() => {
-    if (!user) return;
-    socket.emit("join", user.username);
+    socket.connect();
 
-    const handleReceive = (msg) => {
-      setMessages((prev) => [...prev, msg]);
+    const onJoined = ({ username }) => {
+      setJoined(true);
+      setError("");
     };
+    const onTaken = () => setError("Username already taken");
+    const onErr = (msg) => setError(msg);
 
-    const handleUserTyping = (username) => {
-      setTypingUsers((prev) => {
-        if (!prev.includes(username)) return [...prev, username];
-        return prev;
-      });
-    };
-
-    const handleUserStoppedTyping = (username) => {
-      setTypingUsers((prev) => prev.filter((name) => name !== username));
-    };
-
-    socket.on("receive_message", handleReceive);
-    socket.on("user_typing", handleUserTyping);
-    socket.on("user_stopped_typing", handleUserStoppedTyping);
+    socket.on("joined", onJoined);
+    socket.on("username_taken", onTaken);
+    socket.on("error", onErr);
 
     return () => {
-      socket.off("receive_message", handleReceive);
-      socket.off("user_typing", handleUserTyping);
-      socket.off("user_stopped_typing", handleUserStoppedTyping);
+      socket.off("joined", onJoined);
+      socket.off("username_taken", onTaken);
+      socket.off("error", onErr);
+      socket.disconnect();
     };
-  }, [user]);
+  }, []);
 
-  // Send message
-  const sendMessage = () => {
-    if (!messageInput.trim()) return;
-
-    const msgData = {
-      user: user.username,
-      text: messageInput.trim(),
-    };
-    socket.emit("send_message", msgData);
-    setMessageInput("");
-    socket.emit("stop_typing");
-  };
-
-  // Handle typing
-  const handleTyping = (e) => {
-    setMessageInput(e.target.value);
-
-    if (typingTimeout.current) {
-      clearTimeout(typingTimeout.current);
+  const join = () => {
+    const name = inputRef.current?.value.trim();
+    if (name) {
+      socket.emit("join", name);
+      setError("");
     }
-
-    socket.emit("typing");
-
-    typingTimeout.current = setTimeout(() => {
-      socket.emit("stop_typing");
-    }, 1000);
   };
 
-  const handleEnterPress = (e) => {
-    if (e.key === "Enter") sendMessage();
+  const onKey = (e) => {
+    if (e.key === "Enter") join();
   };
 
-  // Format timestamps nicely
-  const formatTime = (isoString) => {
-    if (!isoString) return "";
-    const date = new Date(isoString);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
+  // Update online count in App.js
+  useEffect(() => {
+    const updateCount = (users) => {
+      // This will be passed up to App.js somehow
+      // For now, just log
+      console.log(`Online users: ${users.length}`);
+    };
+    socket.on("update_users", updateCount);
+    return () => socket.off("update_users", updateCount);
+  }, []);
+
+  if (!joined) {
+    return (
+      <div className="join-screen">
+        <h1>Join Chat</h1>
+        <input
+          ref={inputRef}
+          placeholder="Your name"
+          maxLength={20}
+          onKeyDown={onKey}
+          autoFocus
+        />
+        <button onClick={join}>Join</button>
+        {error && <p className="error">{error}</p>}
+      </div>
+    );
+  }
 
   return (
-    <div className="chat-container">
-      <OnlineUsers socket={socket} />
-
-      <div className="chat-window">
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`chat-message ${
-              msg.user === user.username ? "own-message" : ""
-            }`}
-          >
-            <div>
-              <strong>{msg.user}: </strong>
-              <span>{msg.text}</span>
-            </div>
-            <small className="timestamp">{formatTime(msg.timestamp)}</small>
-          </div>
-        ))}
-      </div>
-
-      {typingUsers.length > 0 && (
-        <div className="typing-indicator">
-          {typingUsers.join(", ")} {typingUsers.length > 1 ? "are" : "is"} typing...
-        </div>
-      )}
-
-      <div className="chat-input">
-        <input
-          type="text"
-          value={messageInput}
-          onChange={handleTyping}
-          onKeyDown={handleEnterPress}
-          placeholder="Type your message..."
-        />
-        <button onClick={sendMessage}>Send</button>
+    <div className="chat-layout">
+      <div className="chat-main">
+        <ChatWindow currentUser={currentUser} />
       </div>
     </div>
   );
 }
-
-export default Chat;

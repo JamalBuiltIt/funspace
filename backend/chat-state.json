@@ -1,0 +1,20 @@
+{
+  "users": [],
+  "messages": [
+    {
+      "user": "hey",
+      "text": "mm",
+      "timestamp": "2025-10-31T04:57:44.403Z"
+    },
+    {
+      "user": "hey",
+      "text": "yo",
+      "timestamp": "2025-10-31T04:57:58.627Z"
+    },
+    {
+      "user": "ok",
+      "text": "yoo",
+      "timestamp": "2025-10-31T04:58:36.486Z"
+    }
+  ]
+}
